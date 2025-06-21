@@ -3,11 +3,20 @@ Phoenix Police Department portal scraper - PRODUCTION READY.
 
 This module automates the Phoenix PD public records request process,
 turning 18-month waits into instant submissions.
+
+Supports all report types:
+- Incident Reports ($5)
+- Traffic Crash Reports ($5)
+- Body Camera Footage ($4)
+- Surveillance Videos ($4)
+- 911 Recordings ($16.50)
+- Calls for Service (Free)
+- Crime Statistics (Free)
 """
 
 import asyncio
 import random
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Literal
 from datetime import datetime
 from pathlib import Path
 import re
@@ -17,6 +26,10 @@ from playwright.async_api import async_playwright, TimeoutError as PlaywrightTim
 
 from .base import BaseScraper
 from ..utils.delays import human_delay, get_typing_delay, random_micro_delay
+from ..utils.sanitize import (
+    sanitize_phoenix_input, sanitize_case_number, 
+    prepare_phoenix_submission, validate_report_type_restrictions
+)
 
 
 class PhoenixPDScraper(BaseScraper):
@@ -24,11 +37,60 @@ class PhoenixPDScraper(BaseScraper):
     Production-ready scraper for Phoenix Police Department portal.
     
     Key features:
+    - Supports all 7 report types with proper form handling
     - Human-like behavior to avoid detection
     - Screenshot evidence for every step
     - Proxy rotation support
     - Automatic retry logic
+    - Input sanitization for Phoenix PD's fragile system
     """
+    
+    # Report type configurations
+    REPORT_CONFIGS = {
+        "incident": {
+            "name": "Incident Report",
+            "form_value": "incident_report",
+            "base_fee": 5.00,
+            "fields": ["case_number", "requestor_info"]
+        },
+        "traffic_crash": {
+            "name": "Traffic Crash", 
+            "form_value": "traffic_crash",
+            "base_fee": 5.00,
+            "fields": ["case_number", "requestor_info"]
+        },
+        "body_camera": {
+            "name": "On Body Camera Audio/Video",
+            "form_value": "body_camera",
+            "base_fee": 4.00,
+            "fields": ["case_number", "requestor_info", "officer_badge", "incident_date", "time_range"]
+        },
+        "surveillance": {
+            "name": "Surveillance Videos",
+            "form_value": "surveillance_video",
+            "base_fee": 4.00,
+            "fields": ["case_number", "requestor_info", "location", "incident_date"]
+        },
+        "recordings_911": {
+            "name": "911 Recordings",
+            "form_value": "911_recording",
+            "base_fee": 16.50,
+            "fields": ["case_number", "requestor_info", "incident_date"],
+            "max_age_days": 190
+        },
+        "calls_for_service": {
+            "name": "Calls for Service",
+            "form_value": "calls_for_service",
+            "base_fee": 0.00,
+            "fields": ["address", "date_range", "requestor_info"]
+        },
+        "crime_statistics": {
+            "name": "Crime Statistics",
+            "form_value": "crime_statistics", 
+            "base_fee": 0.00,
+            "fields": ["area", "date_range", "requestor_info"]
+        }
+    }
     
     def __init__(self, **kwargs):
         """Initialize Phoenix PD scraper."""
@@ -218,14 +280,84 @@ class PhoenixPDScraper(BaseScraper):
         
         return len(forms) > 0
         
+    async def select_report_type(self, report_type: str) -> bool:
+        """Select the specific report type from available options."""
+        self.logger.info(f"Selecting report type: {report_type}")
+        
+        config = self.REPORT_CONFIGS.get(report_type)
+        if not config:
+            self.logger.error(f"Unknown report type: {report_type}")
+            return False
+            
+        report_name = config["name"]
+        
+        # Look for report type selection (radio buttons, checkboxes, or dropdown)
+        selectors = [
+            f"input[type='radio'][value*='{config['form_value']}']",
+            f"input[type='checkbox'][value*='{config['form_value']}']",
+            f"label:has-text('{report_name}')",
+            f"button:has-text('{report_name}')",
+            f"div:has-text('{report_name}')",
+            f"option:has-text('{report_name}')"
+        ]
+        
+        for selector in selectors:
+            try:
+                element = await self.page.wait_for_selector(selector, timeout=3000)
+                if element:
+                    # Check if it's a radio/checkbox
+                    tag_name = await element.evaluate("el => el.tagName.toLowerCase()")
+                    
+                    if tag_name == "input":
+                        # Click the input directly
+                        await element.click()
+                    elif tag_name == "label":
+                        # Click the label
+                        await element.click()
+                    elif tag_name == "option":
+                        # It's in a dropdown - need to select it
+                        select = await element.evaluate_handle("el => el.parentElement")
+                        await select.select_option(value=config['form_value'])
+                    else:
+                        # Generic click
+                        await element.click()
+                        
+                    await human_delay(1.0, 2.0)
+                    
+                    # Take screenshot of selection
+                    await self.take_evidence_screenshot(f"selected_{report_type}")
+                    
+                    self.logger.info(f"Successfully selected {report_name}")
+                    return True
+                    
+            except PlaywrightTimeout:
+                continue
+                
+        self.logger.warning(f"Could not find selector for report type: {report_name}")
+        return False
+        
     async def fill_request_form(
         self,
+        report_type: str,
         case_number: str,
-        requestor_info: Dict[str, str]
+        requestor_info: Dict[str, str],
+        additional_data: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """Fill out the police report request form."""
-        self.logger.info(f"Filling request form for case {case_number}")
+        """Fill out the report request form with sanitized inputs."""
+        self.logger.info(f"Filling {report_type} request form for case {case_number}")
         
+        # Prepare and sanitize all inputs
+        try:
+            sanitized_data = prepare_phoenix_submission(
+                report_type=report_type,
+                case_number=case_number,
+                requestor_info=requestor_info,
+                additional_data=additional_data
+            )
+        except ValueError as e:
+            self.logger.error(f"Validation failed: {e}")
+            return False
+            
         # Common input field patterns
         field_mappings = {
             "case_number": [
@@ -259,35 +391,56 @@ class PhoenixPDScraper(BaseScraper):
                 "input[name*='phone']",
                 "input[id*='phone']",
                 "input[placeholder*='phone']"
+            ],
+            "address": [
+                "input[name*='address']",
+                "input[id*='address']",
+                "input[placeholder*='address']",
+                "textarea[name*='address']"
+            ],
+            "date": [
+                "input[type='date']",
+                "input[name*='date']",
+                "input[id*='date']",
+                "input[placeholder*='date']"
+            ],
+            "officer_badge": [
+                "input[name*='officer']",
+                "input[name*='badge']",
+                "input[id*='officer']",
+                "input[placeholder*='officer']"
             ]
         }
         
         filled_fields = 0
         
-        # Fill case number
-        for selector in field_mappings["case_number"]:
-            try:
-                element = await self.page.wait_for_selector(selector, timeout=2000)
-                if element:
-                    # Clear existing value
-                    await element.click()
-                    await self.page.keyboard.press("Control+A")
-                    await self.page.keyboard.press("Delete")
+        # Fill case number if required for this report type
+        if "case_number" in self.REPORT_CONFIGS[report_type]["fields"]:
+            sanitized_case = sanitized_data["case_number"]
+            
+            for selector in field_mappings["case_number"]:
+                try:
+                    element = await self.page.wait_for_selector(selector, timeout=2000)
+                    if element:
+                        # Clear existing value
+                        await element.click()
+                        await self.page.keyboard.press("Control+A")
+                        await self.page.keyboard.press("Delete")
+                        
+                        # Type with human-like delays
+                        for char in sanitized_case:
+                            await self.page.keyboard.type(char)
+                            await asyncio.sleep(random.uniform(0.05, 0.15))
+                        
+                        filled_fields += 1
+                        self.logger.info(f"Filled case number: {sanitized_case}")
+                        break
+                        
+                except PlaywrightTimeout:
+                    continue
                     
-                    # Type with human-like delays
-                    for char in case_number:
-                        await self.page.keyboard.type(char)
-                        await asyncio.sleep(random.uniform(0.05, 0.15))
-                    
-                    filled_fields += 1
-                    self.logger.info(f"Filled case number: {case_number}")
-                    break
-                    
-            except PlaywrightTimeout:
-                continue
-                
         # Fill requestor information
-        for field, value in requestor_info.items():
+        for field, value in sanitized_data["requestor_info"].items():
             if field in field_mappings and value:
                 await human_delay(0.5, 1.5)
                 
@@ -300,7 +453,7 @@ class PhoenixPDScraper(BaseScraper):
                             await self.page.keyboard.press("Delete")
                             
                             # Type with human-like delays
-                            for char in value:
+                            for char in str(value):
                                 await self.page.keyboard.type(char)
                                 await asyncio.sleep(random.uniform(0.05, 0.15))
                                 
@@ -311,8 +464,38 @@ class PhoenixPDScraper(BaseScraper):
                     except PlaywrightTimeout:
                         continue
                         
+        # Fill additional fields if provided
+        if sanitized_data.get("additional_data"):
+            for field, value in sanitized_data["additional_data"].items():
+                if field in field_mappings and value:
+                    await human_delay(0.5, 1.5)
+                    
+                    for selector in field_mappings[field]:
+                        try:
+                            element = await self.page.wait_for_selector(selector, timeout=2000)
+                            if element:
+                                await element.click()
+                                await self.page.keyboard.press("Control+A")
+                                await self.page.keyboard.press("Delete")
+                                
+                                # Handle dates specially
+                                if field == "date" and isinstance(value, datetime):
+                                    value = value.strftime("%m/%d/%Y")
+                                    
+                                # Type with human-like delays
+                                for char in str(value):
+                                    await self.page.keyboard.type(char)
+                                    await asyncio.sleep(random.uniform(0.05, 0.15))
+                                    
+                                filled_fields += 1
+                                self.logger.info(f"Filled {field}")
+                                break
+                                
+                        except PlaywrightTimeout:
+                            continue
+                        
         # Take screenshot of filled form
-        await self.take_evidence_screenshot(f"form_filled_{case_number}")
+        await self.take_evidence_screenshot(f"form_filled_{report_type}_{case_number}")
         
         return filled_fields >= 2  # At least case number and one other field
         
@@ -439,20 +622,31 @@ class PhoenixPDScraper(BaseScraper):
             
     async def submit_report_request(
         self,
+        report_type: str,
         case_number: str,
-        requestor_info: Dict[str, str]
+        requestor_info: Dict[str, str],
+        additional_data: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Complete end-to-end submission of a police report request.
+        Complete end-to-end submission of any report type request.
         
         Args:
+            report_type: Type of report to request (incident, traffic_crash, etc.)
             case_number: The case/report number to request
             requestor_info: Dictionary with requestor details
+            additional_data: Additional data required for specific report types
             
         Returns:
             Dictionary with confirmation details or None if failed
         """
         try:
+            # Validate report type
+            if report_type not in self.REPORT_CONFIGS:
+                self.logger.error(f"Invalid report type: {report_type}")
+                return None
+                
+            config = self.REPORT_CONFIGS[report_type]
+            
             # Navigate to portal
             if not await self.navigate_to_portal():
                 return None
@@ -462,8 +656,13 @@ class PhoenixPDScraper(BaseScraper):
                 self.logger.error("Could not find request form")
                 return None
                 
-            # Fill the form
-            if not await self.fill_request_form(case_number, requestor_info):
+            # Select the report type
+            if not await self.select_report_type(report_type):
+                self.logger.error(f"Could not select report type: {report_type}")
+                return None
+                
+            # Fill the form with sanitized inputs
+            if not await self.fill_request_form(report_type, case_number, requestor_info, additional_data):
                 self.logger.error("Could not fill form properly")
                 return None
                 
@@ -478,12 +677,15 @@ class PhoenixPDScraper(BaseScraper):
             if confirmation:
                 return {
                     "status": "submitted",
+                    "report_type": report_type,
+                    "report_name": config["name"],
+                    "base_fee": config["base_fee"],
                     "confirmation_number": confirmation.get("number"),
                     "submitted_at": datetime.utcnow().isoformat(),
                     "case_number": case_number,
                     "portal_response": confirmation,
                     "evidence_screenshots": [
-                        str(f) for f in self.evidence_dir.glob(f"*{case_number}*")
+                        str(f) for f in self.evidence_dir.glob(f"*{report_type}*{case_number}*")
                     ]
                 }
             else:
@@ -498,17 +700,32 @@ class PhoenixPDScraper(BaseScraper):
         action = kwargs.get("action", "submit_request")
         
         if action == "submit_request":
+            report_type = kwargs.get("report_type", "incident")  # Default to incident report
             case_number = kwargs.get("case_number")
             requestor_info = kwargs.get("requestor_info", {})
+            additional_data = kwargs.get("additional_data", {})
             
-            if not case_number:
-                raise ValueError("case_number is required for submit_request")
-                
+            # Validate required fields based on report type
+            if report_type in ["incident", "traffic_crash", "body_camera", "surveillance", "recordings_911"]:
+                if not case_number:
+                    raise ValueError(f"case_number is required for {report_type}")
+            elif report_type == "calls_for_service":
+                if not additional_data.get("address"):
+                    raise ValueError("address is required for calls_for_service")
+            elif report_type == "crime_statistics":
+                if not additional_data.get("area"):
+                    raise ValueError("area is required for crime_statistics")
+                    
             # Add email if not provided (required field)
             if "email" not in requestor_info:
                 requestor_info["email"] = "noreply@municipalrecords.com"
                 
-            result = await self.submit_report_request(case_number, requestor_info)
+            result = await self.submit_report_request(
+                report_type=report_type,
+                case_number=case_number,
+                requestor_info=requestor_info,
+                additional_data=additional_data
+            )
             
         else:
             raise ValueError(f"Unknown action: {action}")
