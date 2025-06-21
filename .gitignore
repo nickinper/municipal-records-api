@@ -117,3 +117,4 @@ sessions/
 production.env
 prod.env
 railway.env.env
+backups/

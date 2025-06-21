@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import stripe
 
-from ..database.models import Customer, Request, RequestLog, RequestStatus, CreditPurchase
+from ..database.models import Customer, Request as DBRequest, RequestEvent, RequestStatus, CreditPurchase
 from ..billing.stripe_handler import StripeHandler
 from core.scrapers.phoenix_pd import PhoenixPDScraper
 from ..integrations.stripe_tools import update_volume_pricing, apply_retroactive_discount
@@ -38,7 +38,7 @@ async def process_request_immediately(
     try:
         # Get request from database
         result = await db.execute(
-            select(Request).where(Request.id == request_id)
+            select(DBRequest).where(DBRequest.id == request_id)
         )
         request = result.scalar_one_or_none()
         
@@ -53,10 +53,11 @@ async def process_request_immediately(
         request.submitted_to_portal_at = datetime.utcnow()
         
         # Log the start
-        log_entry = RequestLog(
+        log_entry = RequestEvent(
             request_id=request.id,
-            action="immediate_processing_started",
-            details="Processing immediately after payment confirmation"
+            event_type="immediate_processing_started",
+            event_data={"details": "Processing immediately after payment confirmation"},
+            triggered_by="webhook"
         )
         db.add(log_entry)
         await db.commit()
@@ -89,11 +90,15 @@ async def process_request_immediately(
                 request.phoenix_confirmation = result.get("confirmation_number")
                 
                 # Log success with evidence
-                log_entry = RequestLog(
+                log_entry = RequestEvent(
                     request_id=request.id,
-                    action="submitted_to_phoenix",
-                    details=f"Confirmation: {result.get('confirmation_number')}",
-                    screenshot_path=str(result.get("evidence_screenshots", [""])[0])
+                    event_type="submitted_to_phoenix",
+                    event_data={
+                        "details": f"Confirmation: {result.get('confirmation_number')}",
+                        "screenshot_path": str(result.get("evidence_screenshots", [""])[0]),
+                        "confirmation_number": result.get('confirmation_number')
+                    },
+                    triggered_by="webhook"
                 )
                 db.add(log_entry)
                 
@@ -106,11 +111,14 @@ async def process_request_immediately(
                 request.status = RequestStatus.PAYMENT_RECEIVED
                 request.retry_count = 1
                 
-                log_entry = RequestLog(
+                log_entry = RequestEvent(
                     request_id=request.id,
-                    action="submission_failed",
-                    details="Initial submission failed, will retry",
-                    is_error=True
+                    event_type="submission_failed",
+                    event_data={
+                        "details": "Initial submission failed, will retry",
+                        "error": True
+                    },
+                    triggered_by="webhook"
                 )
                 db.add(log_entry)
                 
@@ -123,12 +131,15 @@ async def process_request_immediately(
         
         # Log error
         try:
-            log_entry = RequestLog(
-                request_id=request_id,
-                action="processing_error",
-                details=str(e),
-                is_error=True,
-                error_message=str(e)
+            log_entry = RequestEvent(
+                request_id=request.id,
+                event_type="processing_error",
+                event_data={
+                    "details": str(e),
+                    "error": True,
+                    "error_message": str(e)
+                },
+                triggered_by="webhook"
             )
             db.add(log_entry)
             await db.commit()
@@ -237,7 +248,7 @@ async def stripe_webhook(
             if request_id:
                 # Update request in database
                 result = await db.execute(
-                    select(Request).where(Request.id == request_id)
+                    select(DBRequest).where(DBRequest.id == request_id)
                 )
                 record_request = result.scalar_one_or_none()
                 
@@ -271,10 +282,14 @@ async def stripe_webhook(
                         record_request.customer_id = customer.id
                         
                     # Log payment received
-                    log_entry = RequestLog(
+                    log_entry = RequestEvent(
                         request_id=record_request.id,
-                        action="payment_received",
-                        details=f"Payment of ${record_request.payment_amount} received via Stripe"
+                        event_type="payment_received",
+                        event_data={
+                            "details": f"Payment of ${record_request.payment_amount} received via Stripe",
+                            "amount": float(record_request.payment_amount)
+                        },
+                        triggered_by="webhook"
                     )
                     db.add(log_entry)
                     await db.commit()
@@ -325,7 +340,7 @@ async def stripe_webhook(
             if request_id and session.get("payment_status") == "paid":
                 # Process similar to payment_intent.succeeded
                 result = await db.execute(
-                    select(Request).where(Request.id == request_id)
+                    select(DBRequest).where(DBRequest.id == request_id)
                 )
                 record_request = result.scalar_one_or_none()
                 
@@ -349,11 +364,14 @@ async def stripe_webhook(
             
             if request_id:
                 # Log the failure
-                log_entry = RequestLog(
+                log_entry = RequestEvent(
                     request_id=request_id,
-                    action="payment_failed",
-                    details=f"Payment failed: {payment_intent.get('last_payment_error', {}).get('message', 'Unknown error')}",
-                    is_error=True
+                    event_type="payment_failed",
+                    event_data={
+                        "details": f"Payment failed: {payment_intent.get('last_payment_error', {}).get('message', 'Unknown error')}",
+                        "error": True
+                    },
+                    triggered_by="webhook"
                 )
                 db.add(log_entry)
                 await db.commit()

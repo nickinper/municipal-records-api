@@ -7,8 +7,12 @@ This script demonstrates the AI pricing agent handling various customer queries.
 
 import asyncio
 import os
+import sys
 from datetime import datetime
 import json
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Set up test environment
 os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY", "test-key")
