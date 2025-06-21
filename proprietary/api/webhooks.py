@@ -16,9 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import stripe
 
-from ..database.models import Customer, Request, RequestLog, RequestStatus
+from ..database.models import Customer, Request, RequestLog, RequestStatus, CreditPurchase
 from ..billing.stripe_handler import StripeHandler
 from core.scrapers.phoenix_pd import PhoenixPDScraper
+from ..integrations.stripe_tools import update_volume_pricing, apply_retroactive_discount
 
 
 logger = logging.getLogger(__name__)
@@ -135,6 +136,62 @@ async def process_request_immediately(
             pass
 
 
+async def handle_credit_purchase(payment_data: dict, db: AsyncSession):
+    """Handle prepaid credit package purchases."""
+    try:
+        customer_email = payment_data.get("customer_email")
+        metadata = payment_data.get("metadata", {})
+        package_type = metadata.get("package_type")
+        credits = int(metadata.get("credits", 0))
+        amount = payment_data.get("amount", 0) / 100  # Convert from cents
+        
+        # Find or create customer
+        customer_result = await db.execute(
+            select(Customer).where(Customer.email == customer_email)
+        )
+        customer = customer_result.scalar_one_or_none()
+        
+        if not customer:
+            # Create new customer
+            from ..billing.stripe_handler import StripeHandler
+            stripe_handler = StripeHandler(os.getenv("STRIPE_SECRET_KEY"), "")
+            
+            customer = Customer(
+                email=customer_email,
+                api_key=stripe_handler.generate_api_key(),
+                api_key_created_at=datetime.utcnow(),
+                credits_balance=0
+            )
+            db.add(customer)
+            await db.flush()
+        
+        # Add credits to customer
+        customer.credits_balance += credits
+        customer.credits_purchased += credits
+        
+        # Record the purchase
+        purchase = CreditPurchase(
+            customer_id=customer.id,
+            credits_amount=credits,
+            total_cost=amount,
+            cost_per_credit=amount / credits if credits > 0 else 0,
+            discount_percent=metadata.get("discount_percent", 0),
+            stripe_payment_intent_id=payment_data.get("payment_intent"),
+            paid_at=datetime.utcnow(),
+            status="completed"
+        )
+        db.add(purchase)
+        
+        await db.commit()
+        
+        logger.info(f"Successfully processed credit purchase: {credits} credits for ${amount}")
+        
+        # TODO: Send confirmation email
+        
+    except Exception as e:
+        logger.error(f"Error handling credit purchase: {str(e)}")
+
+
 @router.post("/stripe")
 async def stripe_webhook(
     request: Request,
@@ -222,6 +279,35 @@ async def stripe_webhook(
                     db.add(log_entry)
                     await db.commit()
                     
+                    # Check for volume discount eligibility
+                    if customer:
+                        # Count total requests this month
+                        from sqlalchemy import func
+                        monthly_count = await db.execute(
+                            select(func.count(Request.id))
+                            .where(Request.customer_id == customer.id)
+                            .where(Request.created_at >= func.now() - func.cast('30 days', func.interval))
+                        )
+                        usage_count = monthly_count.scalar() or 0
+                        
+                        # Update pricing tier if needed
+                        pricing_result = update_volume_pricing(
+                            customer_id=customer.stripe_customer_id,
+                            usage_count=usage_count
+                        )
+                        
+                        if pricing_result.get("success"):
+                            logger.info(f"Updated customer to {pricing_result['tier_name']} tier")
+                            
+                            # Check for retroactive discount
+                            if usage_count in [11, 51, 100]:
+                                credit_result = apply_retroactive_discount(
+                                    customer_id=customer.stripe_customer_id,
+                                    order_count=usage_count
+                                )
+                                if credit_result.get("success"):
+                                    logger.info(f"Applied retroactive credit: ${credit_result['credit_amount']}")
+                    
                     # PROCESS IMMEDIATELY IN BACKGROUND
                     background_tasks.add_task(
                         process_request_immediately,
@@ -273,6 +359,12 @@ async def stripe_webhook(
                 await db.commit()
                 
                 logger.warning(f"Payment failed for request {request_id}")
+                
+        elif event_type == "payment_link.payment_completed":
+            # Credit package purchase
+            metadata = event_data.get("metadata", {})
+            if metadata.get("type") == "prepaid_credits":
+                await handle_credit_purchase(event_data, db)
                 
         # Return success to Stripe
         return JSONResponse(content={"status": "success"})

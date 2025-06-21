@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 
 from proprietary.api.endpoints import router as api_router, limiter
 from proprietary.api.webhooks import router as webhook_router
+from proprietary.api.pricing_assistant import router as pricing_router
 from proprietary.database.models import Base
 from proprietary.billing.stripe_handler import StripeHandler
 
@@ -42,7 +43,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Application lifecycle management."""
     # Startup
-    logger.info("=€ Starting Municipal Records Processing API - Let's make money!")
+    logger.info("=ï¿½ Starting Municipal Records Processing API - Let's make money!")
     
     # Database setup
     database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://municipal_user:secure_password@localhost:5432/municipal_records")
@@ -76,7 +77,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     stripe_webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
     
     if not stripe_secret:
-        logger.warning("   Stripe not configured - payment processing will not work")
+        logger.warning("ï¿½  Stripe not configured - payment processing will not work")
         logger.warning("   Set STRIPE_SECRET_KEY in .env file")
         stripe_handler = None
     else:
@@ -89,7 +90,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     app.state.redis = redis_client
     app.state.stripe = stripe_handler
     
-    logger.info(" Application startup complete - READY TO MAKE MONEY! =°")
+    logger.info(" Application startup complete - READY TO MAKE MONEY! =ï¿½")
     
     yield
     
@@ -126,6 +127,7 @@ app.add_middleware(SlowAPIMiddleware)
 # Include routers
 app.include_router(api_router)
 app.include_router(webhook_router)
+app.include_router(pricing_router)
 
 
 @app.middleware("http")
