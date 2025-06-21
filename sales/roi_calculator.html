@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROI Calculator - Municipal Records Processing</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .calculator {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        input[type="number"]:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f0f8ff;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .savings {
+            font-size: 32px;
+            color: #4CAF50;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .cta {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .cta button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+        }
+        .cta button:hover {
+            background-color: #45a049;
+        }
+        .disclaimer {
+            font-size: 12px;
+            color: #666;
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="calculator">
+        <h1>📊 ROI Calculator</h1>
+        <p style="text-align: center; color: #666;">See how much your organization can save by eliminating the 18-month wait for Phoenix police records</p>
+        
+        <div class="input-group">
+            <label for="company-type">Organization Type:</label>
+            <select id="company-type" onchange="updateCalculation()">
+                <option value="insurance">Insurance Company</option>
+                <option value="law-firm">Law Firm</option>
+                <option value="nonprofit">Nonprofit/Advocacy Group</option>
+            </select>
+        </div>
+        
+        <div class="input-group">
+            <label for="monthly-requests">Average Monthly Phoenix PD Record Requests:</label>
+            <input type="number" id="monthly-requests" value="50" min="1" max="10000" onchange="updateCalculation()">
+        </div>
+        
+        <div class="input-group">
+            <label for="current-cost">Current Cost Per Request (staff time, courier fees, etc.):</label>
+            <input type="number" id="current-cost" value="120" min="0" max="1000" onchange="updateCalculation()">
+        </div>
+        
+        <div class="input-group" id="claim-value-group">
+            <label for="avg-claim-value">Average Claim/Case Value ($):</label>
+            <input type="number" id="avg-claim-value" value="50000" min="0" max="1000000" onchange="updateCalculation()">
+        </div>
+        
+        <div class="results">
+            <h2>Your Savings Analysis</h2>
+            
+            <div class="result-item">
+                <span>Current Monthly Cost:</span>
+                <span id="current-monthly-cost">$6,000</span>
+            </div>
+            
+            <div class="result-item">
+                <span>18-Month Delay Cost:</span>
+                <span id="delay-cost">$120,000</span>
+            </div>
+            
+            <div class="result-item">
+                <span>Total Current Cost:</span>
+                <span id="total-current-cost">$126,000</span>
+            </div>
+            
+            <div class="result-item">
+                <span>Municipal Records API Cost:</span>
+                <span id="api-cost">$3,950</span>
+            </div>
+            
+            <div class="savings">
+                Monthly Savings: <span id="monthly-savings">$122,050</span><br>
+                Annual Savings: <span id="annual-savings">$1,464,600</span>
+            </div>
+            
+            <div class="result-item" style="text-align: center; font-weight: bold;">
+                ROI: <span id="roi-percentage">3,089%</span>
+            </div>
+        </div>
+        
+        <div class="cta">
+            <button onclick="scheduleDemoq()">Schedule a Demo</button>
+            <button onclick="startTrial()">Start Free Trial</button>
+        </div>
+        
+        <p class="disclaimer">
+            * Calculations based on industry averages. 18-month delay cost calculated using 5% annual interest rate on held funds/claims. 
+            Actual savings may vary.
+        </p>
+    </div>
+    
+    <script>
+        function updateCalculation() {
+            const companyType = document.getElementById('company-type').value;
+            const monthlyRequests = parseInt(document.getElementById('monthly-requests').value) || 0;
+            const currentCost = parseFloat(document.getElementById('current-cost').value) || 0;
+            const avgClaimValue = parseFloat(document.getElementById('avg-claim-value').value) || 0;
+            
+            // Show/hide claim value for appropriate company types
+            const claimValueGroup = document.getElementById('claim-value-group');
+            claimValueGroup.style.display = companyType === 'nonprofit' ? 'none' : 'block';
+            
+            // Calculate current costs
+            const currentMonthlyCost = monthlyRequests * currentCost;
+            
+            // Calculate delay cost (18 months at 5% annual interest)
+            let delayCost = 0;
+            if (companyType === 'insurance') {
+                // Insurance: interest on claims
+                const monthlyInterestRate = 0.05 / 12;
+                const delayMonths = 18;
+                delayCost = monthlyRequests * avgClaimValue * monthlyInterestRate * delayMonths;
+            } else if (companyType === 'law-firm') {
+                // Law firm: opportunity cost and case delays
+                delayCost = monthlyRequests * 500; // $500 per case in delays/complications
+            }
+            
+            const totalCurrentCost = currentMonthlyCost + delayCost;
+            
+            // Calculate API costs based on company type and volume
+            let pricePerRequest;
+            if (companyType === 'insurance') {
+                if (monthlyRequests > 500) pricePerRequest = 39;
+                else if (monthlyRequests > 100) pricePerRequest = 59;
+                else pricePerRequest = 79;
+            } else if (companyType === 'law-firm') {
+                pricePerRequest = monthlyRequests > 50 ? 49 : 69;
+            } else {
+                pricePerRequest = 19;
+            }
+            
+            const apiCost = monthlyRequests * pricePerRequest;
+            
+            // Calculate savings
+            const monthlySavings = totalCurrentCost - apiCost;
+            const annualSavings = monthlySavings * 12;
+            const roi = ((monthlySavings / apiCost) * 100).toFixed(0);
+            
+            // Update display
+            document.getElementById('current-monthly-cost').textContent = '$' + currentMonthlyCost.toLocaleString();
+            document.getElementById('delay-cost').textContent = '$' + Math.round(delayCost).toLocaleString();
+            document.getElementById('total-current-cost').textContent = '$' + Math.round(totalCurrentCost).toLocaleString();
+            document.getElementById('api-cost').textContent = '$' + apiCost.toLocaleString();
+            document.getElementById('monthly-savings').textContent = '$' + Math.round(monthlySavings).toLocaleString();
+            document.getElementById('annual-savings').textContent = '$' + Math.round(annualSavings).toLocaleString();
+            document.getElementById('roi-percentage').textContent = roi + '%';
+        }
+        
+        function scheduleDemo() {
+            // In production, this would open calendar scheduling
+            alert('Demo scheduling would open here. Email: enterprise@municipalrecords.com');
+        }
+        
+        function startTrial() {
+            // In production, this would navigate to signup
+            alert('Free trial signup would open here.');
+        }
+        
+        // Initial calculation
+        updateCalculation();
+    </script>
+</body>
+</html>
