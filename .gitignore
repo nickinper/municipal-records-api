@@ -116,4 +116,4 @@ sessions/
 # Production configs
 production.env
 prod.env
-railway.env
+railway.env.env
