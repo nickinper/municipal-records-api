@@ -3,7 +3,7 @@ services:
   - type: web
     name: municipal-records-api
     runtime: python
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "python -m pip install --upgrade pip && pip install -r requirements.txt"
     startCommand: "python main.py"
     envVars:
       - key: PYTHON_VERSION
