@@ -51,6 +51,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     if database_url and database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
     
+    # Log the database URL pattern (hide sensitive parts)
+    if database_url:
+        url_parts = database_url.split("@")
+        if len(url_parts) > 1:
+            logger.info(f"Database URL pattern: {url_parts[0].split('://')[0]}://***@{url_parts[1]}")
+    
+    # Also handle postgresql:// URLs that need asyncpg
+    if database_url and database_url.startswith("postgresql://") and "+asyncpg" not in database_url:
+        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    
     engine = create_async_engine(
         database_url,
         echo=os.getenv("DEBUG", "False").lower() == "true",
