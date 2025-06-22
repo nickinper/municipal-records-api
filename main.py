@@ -89,8 +89,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     stripe_secret = os.getenv("STRIPE_SECRET_KEY")
     # Clean the API key - remove any whitespace/newlines
     if stripe_secret:
+        original_ending = stripe_secret[-10:] if len(stripe_secret) >= 10 else stripe_secret
         stripe_secret = stripe_secret.strip().replace('\n', '').replace('\r', '').replace(' ', '').replace('\t', '')
-        logger.info(f"Stripe key cleaned - length: {len(stripe_secret)}, ends with: ...{stripe_secret[-10:]}")
+        logger.info(f"Stripe key - Original ending: ...{repr(original_ending)}, Cleaned ending: ...{stripe_secret[-10:]}, Length: {len(stripe_secret)}")
     
     stripe_webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
     if stripe_webhook_secret:
