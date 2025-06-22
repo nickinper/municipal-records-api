@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Application lifecycle management."""
     # Startup
-    logger.info("=� Starting Municipal Records Processing API - Let's make money!")
+    logger.info("=� Starting Municipal Records Processing API - Let's make money! [v2]")
     
     # Database setup
     database_url = os.getenv("DATABASE_URL")

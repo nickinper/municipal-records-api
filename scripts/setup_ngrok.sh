@@ -1,0 +1,21 @@
+#!/bin/bash
+# Quick ngrok setup for webhook testing
+
+echo "🚀 Setting up ngrok for webhook testing..."
+echo ""
+echo "1. First, sign up for free at: https://ngrok.com/signup"
+echo "2. Get your authtoken from: https://dashboard.ngrok.com/get-started/your-authtoken"
+echo ""
+echo "3. Install ngrok:"
+echo "   wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz"
+echo "   tar xvzf ngrok-v3-stable-linux-amd64.tgz"
+echo "   sudo mv ngrok /usr/local/bin/"
+echo ""
+echo "4. Add your authtoken:"
+echo "   ngrok config add-authtoken YOUR_AUTH_TOKEN"
+echo ""
+echo "5. Start ngrok:"
+echo "   ngrok http 8000"
+echo ""
+echo "6. Use the HTTPS URL it gives you for your webhook endpoint"
+echo "   Example: https://abc123.ngrok.io/webhooks/stripe"
