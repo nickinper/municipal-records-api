@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info("=� Starting Municipal Records Processing API - Let's make money!")
     
     # Database setup
-    database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://municipal_user:secure_password@localhost:5432/municipal_records")
+    database_url = os.getenv("DATABASE_URL")
     
     engine = create_async_engine(
         database_url,
