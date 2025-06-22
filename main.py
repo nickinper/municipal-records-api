@@ -87,7 +87,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     
     # Stripe setup
     stripe_secret = os.getenv("STRIPE_SECRET_KEY")
+    # Clean the API key - remove any whitespace/newlines
+    if stripe_secret:
+        stripe_secret = stripe_secret.strip().replace('\n', '').replace('\r', '').replace(' ', '').replace('\t', '')
+        logger.info(f"Stripe key cleaned - length: {len(stripe_secret)}, ends with: ...{stripe_secret[-10:]}")
+    
     stripe_webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+    if stripe_webhook_secret:
+        stripe_webhook_secret = stripe_webhook_secret.strip()
     
     if not stripe_secret:
         logger.warning("�  Stripe not configured - payment processing will not work")
