@@ -1,0 +1,43 @@
+services:
+  # Web service for the API
+  - type: web
+    name: municipal-records-api
+    runtime: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        value: 8000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: municipal-records-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: municipal-records-redis
+          property: connectionString
+      - key: STRIPE_SECRET_KEY
+        sync: false # You'll set this manually
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false # You'll set this manually
+      - key: OPENAI_API_KEY
+        sync: false # You'll set this manually
+      - key: ANTHROPIC_API_KEY
+        sync: false # You'll set this manually
+
+databases:
+  # PostgreSQL database
+  - name: municipal-records-db
+    databaseName: municipal_records
+    user: municipal_user
+    plan: free
+
+# Redis instance
+services:
+  - type: redis
+    name: municipal-records-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru

@@ -48,6 +48,8 @@ class SubmitRequestModel(BaseModel):
     requestor_phone: Optional[str] = Field(None, description="Phone number")
     incident_date: Optional[datetime] = Field(None, description="Date of incident (required for 911 recordings)")
     additional_data: Optional[dict] = Field(default={}, description="Additional data for specific report types")
+    test_mode: Optional[bool] = Field(False, description="Test mode with reduced price")
+    test_amount: Optional[int] = Field(None, description="Test amount in dollars")
 
 
 class RequestStatusResponse(BaseModel):
@@ -154,17 +156,26 @@ async def submit_request(
         
         await db.commit()
         
+        # Determine amount based on test mode
+        if data.test_mode and data.test_amount:
+            amount_cents = data.test_amount * 100  # Convert dollars to cents
+            amount_dollars = data.test_amount
+        else:
+            amount_cents = 4900  # $49.00 in cents
+            amount_dollars = 49.00
+        
         # Generate payment link
         from ..billing.stripe_handler import StripeHandler
         payment_result = await stripe_handler.create_payment_link(
             request_id=request_id,
-            amount=4900,  # $49.00 in cents
+            amount=amount_cents,
             description=f"Phoenix PD {data.report_type.replace('_', ' ').title()} - {data.case_number}",
             customer_email=data.requestor_email,
             metadata={
                 "request_id": request_id,
                 "case_number": data.case_number,
-                "report_type": data.report_type
+                "report_type": data.report_type,
+                "test_mode": str(data.test_mode) if data.test_mode else "false"
             }
         )
         
@@ -191,7 +202,7 @@ async def submit_request(
             "success": True,
             "request_id": request_id,
             "payment_url": payment_url,
-            "amount": 49.00,
+            "amount": amount_dollars,
             "message": "Request created. Complete payment to begin processing.",
             "estimated_delivery": "48-72 hours after payment"
         }

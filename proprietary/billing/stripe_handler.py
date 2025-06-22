@@ -80,8 +80,9 @@ class StripeHandler:
                     },
                     "quantity": 1,
                 }],
-                "success_url": f"https://municipalrecordsprocessing.com/success?request_id={request_id}",
-                "cancel_url": "https://municipalrecordsprocessing.com/cancel",
+                # Use localhost for development/testing
+                "success_url": f"http://localhost:8001/order.html?success=true&request_id={request_id}",
+                "cancel_url": "http://localhost:8001/order.html?canceled=true",
                 "metadata": metadata or {},
                 "payment_intent_data": {
                     "metadata": metadata or {}

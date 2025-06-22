@@ -1,4 +1,4 @@
-.PHONY: help setup start stop restart logs test clean stripe-setup webhook-test
+.PHONY: help setup start stop restart logs test clean stripe-setup webhook-setup webhook-test
 
 # Default target
 help:
@@ -7,7 +7,8 @@ help:
 	@echo ""
 	@echo "Setup & Configuration:"
 	@echo "  make setup          - Complete initial setup (Docker, Python, Database)"
-	@echo "  make stripe-setup   - Configure Stripe API keys and webhook"
+	@echo "  make stripe-setup   - Configure Stripe API keys"
+	@echo "  make webhook-setup  - Configure Stripe webhooks for automation"
 	@echo ""
 	@echo "Development:"
 	@echo "  make start          - Start all services and API server"
@@ -37,7 +38,12 @@ setup:
 
 # Configure Stripe
 stripe-setup:
-	@source venv/bin/activate && python scripts/setup_stripe.py
+	@. venv/bin/activate && python scripts/setup_stripe.py
+
+# Configure webhooks
+webhook-setup:
+	@echo "🔗 Setting up Stripe webhooks..."
+	@. venv/bin/activate && python scripts/setup_webhooks.py
 
 # Start all services
 start:
@@ -46,14 +52,14 @@ start:
 	@echo "⏳ Waiting for services to be ready..."
 	@sleep 5
 	@echo "🌐 Starting API server..."
-	@source venv/bin/activate && python main.py
+	@. venv/bin/activate && python main.py
 
 # Start in background
 start-bg:
 	@echo "🚀 Starting services in background..."
 	@docker-compose up -d
 	@sleep 5
-	@source venv/bin/activate && nohup python main.py > server.log 2>&1 &
+	@. venv/bin/activate && nohup python main.py > server.log 2>&1 &
 	@echo "✅ API server started in background"
 	@echo "View logs with: make logs"
 
@@ -79,7 +85,7 @@ webhook-test:
 
 # Run tests
 test:
-	@source venv/bin/activate && pytest
+	@. venv/bin/activate && pytest
 
 # Test API endpoints
 test-api:
@@ -99,7 +105,7 @@ test-api:
 
 # Test pricing agent
 test-pricing:
-	@source venv/bin/activate && python scripts/test_pricing_agent.py
+	@. venv/bin/activate && python scripts/test_pricing_agent.py
 
 # Database shell
 db-shell:
@@ -126,11 +132,11 @@ clean:
 
 # Format code
 format:
-	@source venv/bin/activate && black .
+	@. venv/bin/activate && black .
 
 # Run linters
 lint:
-	@source venv/bin/activate && ruff check .
+	@. venv/bin/activate && ruff check .
 
 # Quick test submission
 quick-test:
