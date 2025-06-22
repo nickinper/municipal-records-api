@@ -214,8 +214,8 @@ async def check_discount_eligibility(
         "next_tier": next_tier,
         "reports_to_next_tier": reports_to_next,
         "savings_analysis": savings_analysis,
-        "message": f"You're currently on the {current_tier} tier. "
-                  f"{"Order " + str(reports_to_next) + " more reports this month to reach " + next_tier + " tier!" if next_tier else "You're already on our best tier!"}"
+        "message": f"You're currently on the {current_tier} tier. " + 
+                  (f"Order {reports_to_next} more reports this month to reach {next_tier} tier!" if next_tier else "You're already on our best tier!")
     }
 
 
