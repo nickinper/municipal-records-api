@@ -38,7 +38,7 @@ async def process_request_immediately(
     try:
         # Get request from database
         result = await db.execute(
-            select(DBRequest).where(DBRequest.id == request_id)
+            select(DBRequest).where(DBRequest.request_id == request_id)
         )
         request = result.scalar_one_or_none()
         
@@ -248,7 +248,7 @@ async def stripe_webhook(
             if request_id:
                 # Update request in database
                 result = await db.execute(
-                    select(DBRequest).where(DBRequest.id == request_id)
+                    select(DBRequest).where(DBRequest.request_id == request_id)
                 )
                 record_request = result.scalar_one_or_none()
                 
@@ -340,7 +340,7 @@ async def stripe_webhook(
             if request_id and session.get("payment_status") == "paid":
                 # Process similar to payment_intent.succeeded
                 result = await db.execute(
-                    select(DBRequest).where(DBRequest.id == request_id)
+                    select(DBRequest).where(DBRequest.request_id == request_id)
                 )
                 record_request = result.scalar_one_or_none()
                 
@@ -363,18 +363,25 @@ async def stripe_webhook(
             request_id = payment_intent.get("metadata", {}).get("request_id")
             
             if request_id:
-                # Log the failure
-                log_entry = RequestEvent(
-                    request_id=request_id,
-                    event_type="payment_failed",
-                    event_data={
-                        "details": f"Payment failed: {payment_intent.get('last_payment_error', {}).get('message', 'Unknown error')}",
-                        "error": True
-                    },
-                    triggered_by="webhook"
+                # Log the failure  
+                # First get the request to get its integer ID
+                result = await db.execute(
+                    select(DBRequest).where(DBRequest.request_id == request_id)
                 )
-                db.add(log_entry)
-                await db.commit()
+                record_request = result.scalar_one_or_none()
+                
+                if record_request:
+                    log_entry = RequestEvent(
+                        request_id=record_request.id,
+                        event_type="payment_failed",
+                        event_data={
+                            "details": f"Payment failed: {payment_intent.get('last_payment_error', {}).get('message', 'Unknown error')}",
+                            "error": True
+                        },
+                        triggered_by="webhook"
+                    )
+                    db.add(log_entry)
+                    await db.commit()
                 
                 logger.warning(f"Payment failed for request {request_id}")
                 
