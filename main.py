@@ -47,6 +47,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     
     # Database setup
     database_url = os.getenv("DATABASE_URL")
+    # Convert postgres:// to postgresql+asyncpg:// for async support
+    if database_url and database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
     
     engine = create_async_engine(
         database_url,
