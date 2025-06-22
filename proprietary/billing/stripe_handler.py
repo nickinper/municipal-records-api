@@ -80,9 +80,9 @@ class StripeHandler:
                     },
                     "quantity": 1,
                 }],
-                # Use localhost for development/testing
-                "success_url": f"http://localhost:8001/order.html?success=true&request_id={request_id}",
-                "cancel_url": "http://localhost:8001/order.html?canceled=true",
+                # Use GitHub Pages URLs for production
+                "success_url": f"https://nickinper.github.io/municipal-records-website/order.html?success=true&request_id={request_id}",
+                "cancel_url": "https://nickinper.github.io/municipal-records-website/order.html?canceled=true",
                 "metadata": metadata or {},
                 "payment_intent_data": {
                     "metadata": metadata or {}
@@ -104,9 +104,20 @@ class StripeHandler:
             
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error creating payment link: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error details: {e.json_body if hasattr(e, 'json_body') else 'No details'}")
             return {
                 "success": False,
                 "error": str(e)
+            }
+        except Exception as e:
+            logger.error(f"Unexpected error creating payment link: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return {
+                "success": False,
+                "error": "Failed to create payment session"
             }
             
     async def verify_webhook(
