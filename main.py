@@ -87,6 +87,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     
     # Stripe setup
     stripe_secret = os.getenv("STRIPE_SECRET_KEY")
+    
+    # Debug: Check all env vars that might contain keys
+    logger.info("=== DEBUGGING STRIPE KEY ISSUE ===")
+    all_env_vars = os.environ
+    for key in sorted(all_env_vars.keys()):
+        if 'STRIPE' in key or 'KEY' in key:
+            value = all_env_vars[key]
+            if value and len(value) > 10:
+                logger.info(f"Env var {key}: starts with {value[:10]}... ends with ...{value[-10:]}")
+    
     # Clean the API key - remove any whitespace/newlines
     if stripe_secret:
         original_ending = stripe_secret[-10:] if len(stripe_secret) >= 10 else stripe_secret
