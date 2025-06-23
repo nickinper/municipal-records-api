@@ -1,0 +1,113 @@
+{
+  "generated_at": "2025-06-23T16:13:54.443678",
+  "firm_analyses": {
+    "solo": {
+      "firm_profile": "solo",
+      "service_costs": {
+        "price_per_report": 69,
+        "monthly_cost": 345,
+        "annual_cost": 4140
+      },
+      "time_savings": {
+        "days_saved_per_report": 537,
+        "total_days_saved_annually": 32220,
+        "staff_hours_saved_monthly": 15,
+        "staff_cost_saved_annually": 7200
+      },
+      "financial_benefits": {
+        "avoided_delay_cost_per_case": 7366.85,
+        "annual_delay_savings": 442010.96,
+        "additional_cases_per_year": 41.7,
+        "additional_revenue_potential": 1032959.84
+      },
+      "roi_summary": {
+        "total_annual_benefit": 1482170.8,
+        "annual_service_cost": 4140,
+        "net_annual_benefit": 1478030.8,
+        "roi_percentage": 35701.2,
+        "payback_months": 0.0
+      }
+    },
+    "small": {
+      "firm_profile": "small",
+      "service_costs": {
+        "price_per_report": 58.65,
+        "monthly_cost": 1173.0,
+        "annual_cost": 14076.0
+      },
+      "time_savings": {
+        "days_saved_per_report": 537,
+        "total_days_saved_annually": 128880,
+        "staff_hours_saved_monthly": 60,
+        "staff_cost_saved_annually": 28800
+      },
+      "financial_benefits": {
+        "avoided_delay_cost_per_case": 11050.27,
+        "annual_delay_savings": 2652065.75,
+        "additional_cases_per_year": 166.9,
+        "additional_revenue_potential": 4131839.38
+      },
+      "roi_summary": {
+        "total_annual_benefit": 6812705.13,
+        "annual_service_cost": 14076.0,
+        "net_annual_benefit": 6798629.13,
+        "roi_percentage": 48299.4,
+        "payback_months": 0.0
+      }
+    },
+    "medium": {
+      "firm_profile": "medium",
+      "service_costs": {
+        "price_per_report": 48.99,
+        "monthly_cost": 2449.5,
+        "annual_cost": 29394.0
+      },
+      "time_savings": {
+        "days_saved_per_report": 537,
+        "total_days_saved_annually": 322200,
+        "staff_hours_saved_monthly": 150,
+        "staff_cost_saved_annually": 72000
+      },
+      "financial_benefits": {
+        "avoided_delay_cost_per_case": 14733.7,
+        "annual_delay_savings": 8840219.18,
+        "additional_cases_per_year": 417.4,
+        "additional_revenue_potential": 10329598.45
+      },
+      "roi_summary": {
+        "total_annual_benefit": 19241817.62,
+        "annual_service_cost": 29394.0,
+        "net_annual_benefit": 19212423.62,
+        "roi_percentage": 65361.7,
+        "payback_months": 0.0
+      }
+    },
+    "large": {
+      "firm_profile": "large",
+      "service_costs": {
+        "price_per_report": 44.85,
+        "monthly_cost": 6727.5,
+        "annual_cost": 80730.0
+      },
+      "time_savings": {
+        "days_saved_per_report": 537,
+        "total_days_saved_annually": 966600,
+        "staff_hours_saved_monthly": 450,
+        "staff_cost_saved_annually": 216000
+      },
+      "financial_benefits": {
+        "avoided_delay_cost_per_case": 22100.55,
+        "annual_delay_savings": 39780986.3,
+        "additional_cases_per_year": 1252.1,
+        "additional_revenue_potential": 30988795.34
+      },
+      "roi_summary": {
+        "total_annual_benefit": 70985781.64,
+        "annual_service_cost": 80730.0,
+        "net_annual_benefit": 70905051.64,
+        "roi_percentage": 87829.9,
+        "payback_months": 0.0
+      }
+    }
+  }
+}
